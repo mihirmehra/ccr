@@ -394,7 +394,8 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
     og_title: initialData?.og_title || "",
     og_description: initialData?.og_description || "",
     og_image: initialData?.og_image || "",
-    tags: Array.isArray(initialData?.tags) ? initialData.tags.join(", ") : initialData?.tags || "",
+    tags: Array.isArray(initialData?.tags) ? initialData.tags : typeof initialData?.tags === 'string' ? initialData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+    keywords: Array.isArray(initialData?.meta_keywords) ? initialData.meta_keywords : typeof initialData?.meta_keywords === 'string' ? initialData.meta_keywords.split(',').map(k => k.trim()).filter(Boolean) : [],
     is_published: initialData?.is_published || false,
     slug: initialData?.slug || "",
   })
@@ -408,6 +409,14 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
   const [addingCategory, setAddingCategory] = useState(false)
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
+  
+  // Tags state
+  const [newTagName, setNewTagName] = useState("")
+  const [availableTags, setAvailableTags] = useState<string[]>([])
+  
+  // Keywords state  
+  const [newKeywordName, setNewKeywordName] = useState("")
+  const [availableKeywords, setAvailableKeywords] = useState<string[]>([])
 
   // Generate slug from title
   const generateSlug = useCallback((title: string) => {
@@ -425,7 +434,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
       titleLength: formData.meta_title.length >= 30 && formData.meta_title.length <= 60,
       hasDescription: formData.meta_description.length > 0,
       descriptionLength: formData.meta_description.length >= 120 && formData.meta_description.length <= 160,
-      hasKeywords: formData.meta_keywords.length > 0,
+      hasKeywords: (formData.keywords as string[]).length > 0,
       hasContent: formData.content.length > 500,
       hasExcerpt: formData.excerpt.length > 0,
       hasFeaturedImage: !!formData.cover_image || !!formData.banner_image,
@@ -444,6 +453,24 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
   }, [formData])
 
   const seoData = calculateSEOScore()
+
+  // Initialize available tags and keywords from initial data
+  useEffect(() => {
+    if (initialData?.tags) {
+      const initialTags = Array.isArray(initialData.tags) 
+        ? initialData.tags 
+        : typeof initialData.tags === 'string' 
+          ? initialData.tags.split(',').map(t => t.trim()).filter(Boolean) 
+          : []
+      setAvailableTags(initialTags)
+    }
+    if (initialData?.meta_keywords) {
+      const initialKeywords = typeof initialData.meta_keywords === 'string' 
+        ? initialData.meta_keywords.split(',').map(k => k.trim()).filter(Boolean) 
+        : []
+      setAvailableKeywords(initialKeywords)
+    }
+  }, [initialData])
 
   // Fetch categories
   useEffect(() => {
@@ -478,7 +505,8 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
         const payload = {
           ...formData,
           category: formData.categories,
-          tags: formData.tags.split(",").map((t) => t.trim()).filter(Boolean),
+          tags: formData.tags as string[],
+          meta_keywords: (formData.keywords as string[]).join(", "),
           is_published: false,
         }
         
@@ -586,6 +614,62 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
     }
   }
 
+  // Toggle tag selection
+  const toggleTag = (tagName: string) => {
+    setFormData((prev) => {
+      const current = prev.tags as string[]
+      if (current.includes(tagName)) {
+        return { ...prev, tags: current.filter((t) => t !== tagName) }
+      }
+      return { ...prev, tags: [...current, tagName] }
+    })
+  }
+
+  // Add new tag
+  const addNewTag = () => {
+    const trimmed = newTagName.trim()
+    if (!trimmed) return
+    const currentTags = formData.tags as string[]
+    if (!currentTags.includes(trimmed)) {
+      setFormData((prev) => ({
+        ...prev,
+        tags: [...(prev.tags as string[]), trimmed],
+      }))
+      if (!availableTags.includes(trimmed)) {
+        setAvailableTags((prev) => [...prev, trimmed])
+      }
+    }
+    setNewTagName("")
+  }
+
+  // Toggle keyword selection
+  const toggleKeyword = (keywordName: string) => {
+    setFormData((prev) => {
+      const current = prev.keywords as string[]
+      if (current.includes(keywordName)) {
+        return { ...prev, keywords: current.filter((k) => k !== keywordName) }
+      }
+      return { ...prev, keywords: [...current, keywordName] }
+    })
+  }
+
+  // Add new keyword
+  const addNewKeyword = () => {
+    const trimmed = newKeywordName.trim()
+    if (!trimmed) return
+    const currentKeywords = formData.keywords as string[]
+    if (!currentKeywords.includes(trimmed)) {
+      setFormData((prev) => ({
+        ...prev,
+        keywords: [...(prev.keywords as string[]), trimmed],
+      }))
+      if (!availableKeywords.includes(trimmed)) {
+        setAvailableKeywords((prev) => [...prev, trimmed])
+      }
+    }
+    setNewKeywordName("")
+  }
+
   const handleSubmit = async (publishStatus: boolean = true) => {
     if (!formData.title.trim()) {
       setError("Please enter a title for your post")
@@ -603,7 +687,8 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
       const payload = {
         ...formData,
         category: formData.categories,
-        tags: formData.tags.split(",").map((t) => t.trim()).filter(Boolean),
+        tags: formData.tags as string[],
+        meta_keywords: (formData.keywords as string[]).join(", "),
         is_published: publishStatus,
       }
 
@@ -963,14 +1048,73 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
               {/* Tags */}
               <CollapsiblePanel title="Tags" icon={Tag}>
                 <div className="space-y-2">
-                  <Input
-                    name="tags"
-                    value={formData.tags}
-                    onChange={handleChange}
-                    placeholder="tag1, tag2, tag3"
-                    className="h-8 text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">Separate tags with commas</p>
+                  {/* Add new tag */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      placeholder="New tag..."
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          addNewTag()
+                        }
+                      }}
+                      className="h-8 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={addNewTag}
+                      disabled={!newTagName.trim()}
+                      className="h-8 px-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Selected tags */}
+                  {(formData.tags as string[]).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(formData.tags as string[]).map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => toggleTag(tag)}
+                            className="hover:text-primary/70"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tag list */}
+                  {availableTags.length > 0 && (
+                    <div className="max-h-32 overflow-y-auto border border-border rounded-md">
+                      <div className="p-1">
+                        {availableTags.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => toggleTag(tag)}
+                            className="w-full px-2 py-1.5 text-left text-sm hover:bg-muted rounded flex items-center justify-between"
+                          >
+                            <span>{tag}</span>
+                            {(formData.tags as string[]).includes(tag) && (
+                              <Check className="h-4 w-4 text-primary" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CollapsiblePanel>
 
@@ -1188,14 +1332,73 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
 
               <CollapsiblePanel title="Focus Keywords" icon={Search}>
                 <div className="space-y-2">
-                  <Input
-                    name="meta_keywords"
-                    value={formData.meta_keywords}
-                    onChange={handleChange}
-                    placeholder="keyword1, keyword2, keyword3"
-                    className="h-8 text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">Separate keywords with commas</p>
+                  {/* Add new keyword */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={newKeywordName}
+                      onChange={(e) => setNewKeywordName(e.target.value)}
+                      placeholder="New keyword..."
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          addNewKeyword()
+                        }
+                      }}
+                      className="h-8 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={addNewKeyword}
+                      disabled={!newKeywordName.trim()}
+                      className="h-8 px-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Selected keywords */}
+                  {(formData.keywords as string[]).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(formData.keywords as string[]).map((keyword) => (
+                        <span
+                          key={keyword}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
+                        >
+                          {keyword}
+                          <button
+                            type="button"
+                            onClick={() => toggleKeyword(keyword)}
+                            className="hover:text-primary/70"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Keyword list */}
+                  {availableKeywords.length > 0 && (
+                    <div className="max-h-32 overflow-y-auto border border-border rounded-md">
+                      <div className="p-1">
+                        {availableKeywords.map((keyword) => (
+                          <button
+                            key={keyword}
+                            type="button"
+                            onClick={() => toggleKeyword(keyword)}
+                            className="w-full px-2 py-1.5 text-left text-sm hover:bg-muted rounded flex items-center justify-between"
+                          >
+                            <span>{keyword}</span>
+                            {(formData.keywords as string[]).includes(keyword) && (
+                              <Check className="h-4 w-4 text-primary" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CollapsiblePanel>
 
