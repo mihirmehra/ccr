@@ -702,3 +702,86 @@
 .blog-content em {
   @apply italic;
 }
+
+.blog-content u {
+  @apply underline;
+}
+
+.blog-content s,
+.blog-content del,
+.blog-content strike {
+  @apply line-through opacity-70;
+}
+
+.blog-content mark {
+  @apply bg-yellow-200 dark:bg-yellow-800/60 text-foreground rounded px-0.5;
+}
+
+/* Text alignment from TipTap TextAlign extension */
+.blog-content [style*="text-align: left"],
+.blog-content .has-text-align-left {
+  text-align: left;
+}
+.blog-content [style*="text-align: center"],
+.blog-content .has-text-align-center {
+  text-align: center;
+}
+.blog-content [style*="text-align: right"],
+.blog-content .has-text-align-right {
+  text-align: right;
+}
+.blog-content [style*="text-align: justify"],
+.blog-content .has-text-align-justify {
+  text-align: justify;
+}
+
+/* h5, h6 */
+.blog-content h5 {
+  @apply text-base font-semibold mt-4 mb-2;
+}
+.blog-content h6 {
+  @apply text-sm font-semibold mt-3 mb-1 text-muted-foreground;
+}
+
+/* Nested lists */
+.blog-content ul ul,
+.blog-content ol ol,
+.blog-content ul ol,
+.blog-content ol ul {
+  @apply my-1 ml-4;
+}
+
+/* Images — handle inline width styles from the editor */
+.blog-content img {
+  @apply max-w-full h-auto rounded-lg my-4;
+  display: block;
+}
+
+/* Table — colgroup widths from resizable tables */
+.blog-content table {
+  @apply w-full border-collapse my-6 text-sm;
+  table-layout: fixed;
+}
+.blog-content colgroup col {
+  width: auto;
+}
+
+/* Code inline */
+.blog-content :not(pre) > code {
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-primary;
+}
+
+/* Blockquote nested paragraph */
+.blog-content blockquote p {
+  @apply my-0;
+}
+
+/* Horizontal rule */
+.blog-content hr {
+  @apply my-8 border-0 border-t border-border;
+}
+
+/* Link visited */
+.blog-content a:visited {
+  @apply text-primary/80;
+}

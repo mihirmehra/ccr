@@ -14,7 +14,7 @@ import { TableCell } from "@tiptap/extension-table-cell"
 import { TableHeader } from "@tiptap/extension-table-header"
 import { Color } from "@tiptap/extension-color"
 import { TextStyle } from "@tiptap/extension-text-style"
-import { useCallback, useState, useEffect } from "react"
+import { useCallback, useState, useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { FloatingToolbar } from "./floating-toolbar"
 import {
@@ -40,11 +40,10 @@ import {
   Minus,
   Undo,
   Redo,
-  Plus,
-  Type,
-  Palette,
+  SeparatorHorizontal,
   Pilcrow,
-  SeparatorHorizontal
+  ChevronDown,
+  X
 } from "lucide-react"
 
 interface EditorCanvasProps {
@@ -53,6 +52,70 @@ interface EditorCanvasProps {
   placeholder?: string
   className?: string
   onBlockSelect?: (blockType: string | null) => void
+}
+
+// Table size picker component
+function TableSizePicker({
+  onSelect,
+  onClose
+}: {
+  onSelect: (rows: number, cols: number) => void
+  onClose: () => void
+}) {
+  const [hovered, setHovered] = useState({ rows: 0, cols: 0 })
+  const MAX_ROWS = 8
+  const MAX_COLS = 8
+
+  return (
+    <div className="p-3 bg-card border border-border rounded-lg shadow-xl">
+      <div className="text-xs text-muted-foreground mb-2 font-medium">
+        {hovered.rows > 0 && hovered.cols > 0
+          ? `${hovered.rows} × ${hovered.cols} table`
+          : "Select table size"}
+      </div>
+      <div
+        className="grid gap-0.5"
+        style={{ gridTemplateColumns: `repeat(${MAX_COLS}, 1fr)` }}
+        onMouseLeave={() => setHovered({ rows: 0, cols: 0 })}
+      >
+        {Array.from({ length: MAX_ROWS }).map((_, rowIdx) =>
+          Array.from({ length: MAX_COLS }).map((_, colIdx) => (
+            <button
+              key={`${rowIdx}-${colIdx}`}
+              type="button"
+              className={cn(
+                "w-6 h-6 border rounded-sm transition-colors",
+                rowIdx < hovered.rows && colIdx < hovered.cols
+                  ? "bg-primary/20 border-primary/50"
+                  : "bg-muted/40 border-border hover:bg-muted"
+              )}
+              onMouseEnter={() => setHovered({ rows: rowIdx + 1, cols: colIdx + 1 })}
+              onClick={() => {
+                onSelect(rowIdx + 1, colIdx + 1)
+                onClose()
+              }}
+            />
+          ))
+        )}
+      </div>
+      <div className="mt-2 pt-2 border-t border-border">
+        <button
+          type="button"
+          className="w-full text-xs text-muted-foreground hover:text-foreground py-1 text-center"
+          onClick={() => {
+            const rows = parseInt(window.prompt("Rows:", "3") || "3")
+            const cols = parseInt(window.prompt("Columns:", "3") || "3")
+            if (rows > 0 && cols > 0) {
+              onSelect(rows, cols)
+              onClose()
+            }
+          }}
+        >
+          Custom size...
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export function EditorCanvas({
@@ -67,7 +130,21 @@ export function EditorCanvas({
     attrs: Record<string, any>
     pos: { top: number; left: number }
   } | null>(null)
+
+  // Slash menu state
   const [showSlashMenu, setShowSlashMenu] = useState(false)
+  const [slashMenuPos, setSlashMenuPos] = useState({ top: 0, left: 0 })
+  const [slashQuery, setSlashQuery] = useState("")
+  const [slashMenuSelected, setSlashMenuSelected] = useState(0)
+  const slashStartPosRef = useRef<number | null>(null)
+
+  // Table picker state
+  const [showTablePicker, setShowTablePicker] = useState(false)
+  const [tableBtnRef, setTableBtnRef] = useState<HTMLButtonElement | null>(null)
+
+  // Floating toolbar visibility
+  const [showFloatingToolbar, setShowFloatingToolbar] = useState(false)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -112,34 +189,24 @@ export function EditorCanvas({
       }),
       Placeholder.configure({
         placeholder: ({ node }) => {
-          if (node.type.name === "heading") {
-            return "Heading"
-          }
+          if (node.type.name === "heading") return "Heading"
           return placeholder
         },
         emptyEditorClass: "is-editor-empty",
         emptyNodeClass: "is-empty"
       }),
       Image.configure({
-        HTMLAttributes: {
-          class: "wp-block wp-block-image"
-        },
+        HTMLAttributes: { class: "wp-block wp-block-image" },
         allowBase64: true
       }),
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: {
-          class: "rte-link"
-        }
+        HTMLAttributes: { class: "rte-link" }
       }),
-      TextAlign.configure({
-        types: ["heading", "paragraph"]
-      }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
       Underline,
       Table.configure({
-        HTMLAttributes: {
-          class: "wp-block wp-block-table"
-        },
+        HTMLAttributes: { class: "wp-block wp-block-table" },
         resizable: true
       }),
       TableRow,
@@ -153,7 +220,6 @@ export function EditorCanvas({
       onChange(editor.getHTML())
     },
     onSelectionUpdate: ({ editor }) => {
-      // Update active block info for sidebar inspector
       const { from } = editor.state.selection
       const node = editor.state.doc.nodeAt(from)
       const resolvedPos = editor.state.doc.resolve(from)
@@ -162,16 +228,18 @@ export function EditorCanvas({
         const domNode = editor.view.nodeDOM(from) as HTMLElement
         if (domNode) {
           const rect = domNode.getBoundingClientRect()
+          const containerRect = editorContainerRef.current?.getBoundingClientRect()
           setActiveBlock({
             type: node.type.name,
             attrs: node.attrs,
-            pos: { top: rect.top, left: rect.left }
+            pos: {
+              top: rect.top - (containerRect?.top ?? 0),
+              left: rect.left - (containerRect?.left ?? 0)
+            }
           })
-          // Notify parent about block selection
           onBlockSelect?.(node.type.name)
         }
       } else {
-        // Check parent node
         const parent = resolvedPos.parent
         if (parent) {
           setActiveBlock({
@@ -179,10 +247,15 @@ export function EditorCanvas({
             attrs: parent.attrs,
             pos: { top: 0, left: 0 }
           })
-          // Notify parent about block selection
           onBlockSelect?.(parent.type.name)
         }
       }
+
+      // Show floating toolbar when there's a selection OR cursor is in a block (for hover toolbar)
+      const { empty, from } = editor.state.selection
+      // Show toolbar if there's a selection, or if cursor is in a non-empty block
+      const hasContent = editor.state.doc.textBetween(0, editor.state.doc.content.size).length > 0
+      setShowFloatingToolbar(!empty || hasContent)
     },
     editorProps: {
       attributes: {
@@ -193,18 +266,172 @@ export function EditorCanvas({
         "data-is-drop-zone": "true"
       },
       handleKeyDown: (view, event) => {
+        const { state } = view
+        const { selection } = state
+        const { $from } = selection
+
+        // ---- Keyboard shortcuts ----
+        const isCtrl = event.ctrlKey || event.metaKey
+
+        if (isCtrl && !event.altKey && !event.shiftKey) {
+          if (event.key === "k" || event.key === "K") {
+            event.preventDefault()
+            const previousUrl = editor?.getAttributes("link").href
+            const url = window.prompt("Enter link URL:", previousUrl || "https://")
+            if (url === null) return true
+            if (url === "") {
+              editor?.chain().focus().extendMarkRange("link").unsetLink().run()
+              return true
+            }
+            editor?.chain().focus().extendMarkRange("link").setLink({ href: url }).run()
+            return true
+          }
+        }
+
+        if (isCtrl && event.altKey) {
+          switch (event.key) {
+            case "1":
+              event.preventDefault()
+              editor?.chain().focus().toggleHeading({ level: 1 }).run()
+              return true
+            case "2":
+              event.preventDefault()
+              editor?.chain().focus().toggleHeading({ level: 2 }).run()
+              return true
+            case "3":
+              event.preventDefault()
+              editor?.chain().focus().toggleHeading({ level: 3 }).run()
+              return true
+            case "7":
+              event.preventDefault()
+              editor?.chain().focus().toggleOrderedList().run()
+              return true
+            case "8":
+              event.preventDefault()
+              editor?.chain().focus().toggleBulletList().run()
+              return true
+          }
+        }
+
+        if (isCtrl && event.shiftKey) {
+          switch (event.key) {
+            case "2":
+              event.preventDefault()
+              editor?.chain().focus().toggleHeading({ level: 2 }).run()
+              return true
+            case "3":
+              event.preventDefault()
+              editor?.chain().focus().toggleHeading({ level: 3 }).run()
+              return true
+            case "7":
+              event.preventDefault()
+              editor?.chain().focus().toggleOrderedList().run()
+              return true
+            case "8":
+              event.preventDefault()
+              editor?.chain().focus().toggleBulletList().run()
+              return true
+          }
+        }
+
+        // ---- Slash menu navigation ----
+        if (showSlashMenu) {
+          const filtered = getFilteredBlocks(slashQuery)
+
+          if (event.key === "ArrowDown") {
+            event.preventDefault()
+            setSlashMenuSelected((prev) => (prev + 1) % filtered.length)
+            return true
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault()
+            setSlashMenuSelected((prev) => (prev - 1 + filtered.length) % filtered.length)
+            return true
+          }
+          if (event.key === "Enter") {
+            event.preventDefault()
+            const block = filtered[slashMenuSelected]
+            if (block) {
+              insertBlock(block.type)
+            }
+            return true
+          }
+          if (event.key === "Escape") {
+            setShowSlashMenu(false)
+            slashStartPosRef.current = null
+            setSlashQuery("")
+            return true
+          }
+          // Keep track of what is typed after "/"
+          if (event.key === "Backspace") {
+            if (slashQuery.length === 0) {
+              // Backspacing over the "/" char — close menu
+              setShowSlashMenu(false)
+              slashStartPosRef.current = null
+              return false
+            }
+            setSlashQuery((prev) => prev.slice(0, -1))
+            return false
+          }
+          if (event.key.length === 1) {
+            setSlashQuery((prev) => prev + event.key)
+            setSlashMenuSelected(0)
+            return false
+          }
+          return false
+        }
+
+        // Open slash menu on "/"
         if (event.key === "/" && !editor?.isActive("codeBlock")) {
+          // Record position for later deletion
+          slashStartPosRef.current = $from.pos
+          setSlashQuery("")
+          setSlashMenuSelected(0)
+
+          // Position the menu near the cursor
+          const coords = view.coordsAtPos($from.pos)
+          const containerRect = editorContainerRef.current?.getBoundingClientRect()
+          if (containerRect) {
+            setSlashMenuPos({
+              top: coords.bottom - containerRect.top + 4,
+              left: Math.max(0, coords.left - containerRect.left)
+            })
+          }
+
           setShowSlashMenu(true)
           return false
         }
-        if (event.key === "Escape") {
-          setShowSlashMenu(false)
-          return true
-        }
+
         return false
       }
     }
   })
+
+  // ---- Slash menu filter ----
+  const blockTypes = [
+    { type: "paragraph", label: "Paragraph", icon: Pilcrow, description: "Plain text block", keywords: ["text", "p"] },
+    { type: "heading1", label: "Heading 1", icon: Heading1, description: "Large section heading", keywords: ["h1", "title"] },
+    { type: "heading2", label: "Heading 2", icon: Heading2, description: "Medium section heading", keywords: ["h2"] },
+    { type: "heading3", label: "Heading 3", icon: Heading3, description: "Small section heading", keywords: ["h3"] },
+    { type: "bulletList", label: "Bullet List", icon: List, description: "Unordered list", keywords: ["ul", "list"] },
+    { type: "orderedList", label: "Numbered List", icon: ListOrdered, description: "Ordered list", keywords: ["ol", "number"] },
+    { type: "blockquote", label: "Quote", icon: Quote, description: "Quotation block", keywords: ["quote", "bq"] },
+    { type: "codeBlock", label: "Code Block", icon: Code, description: "Code snippet", keywords: ["code", "pre"] },
+    { type: "image", label: "Image", icon: ImageIcon, description: "Upload or embed image", keywords: ["img", "photo"] },
+    { type: "table", label: "Table", icon: TableIcon, description: "Insert a table", keywords: ["grid"] },
+    { type: "horizontalRule", label: "Divider", icon: Minus, description: "Horizontal rule", keywords: ["hr", "line", "rule"] }
+  ]
+
+  const getFilteredBlocks = useCallback((query: string) => {
+    if (!query) return blockTypes
+    const q = query.toLowerCase()
+    return blockTypes.filter(
+      (b) =>
+        b.label.toLowerCase().includes(q) ||
+        b.description.toLowerCase().includes(q) ||
+        b.keywords.some((k) => k.includes(q))
+    )
+  }, [])
 
   // Handle image upload
   const handleImageUpload = useCallback(async (file: File) => {
@@ -229,25 +456,21 @@ export function EditorCanvas({
     }
   }, [editor])
 
-  // Handle drag and drop
+  // Drag and drop
   useEffect(() => {
     const handleDrop = (e: DragEvent) => {
       e.preventDefault()
       const files = e.dataTransfer?.files
       if (files?.length) {
         const file = files[0]
-        if (file.type.startsWith("image/")) {
-          handleImageUpload(file)
-        }
+        if (file.type.startsWith("image/")) handleImageUpload(file)
       }
     }
-
     const editorElement = document.querySelector(".editor-styles-wrapper")
     if (editorElement) {
       editorElement.addEventListener("drop", handleDrop as EventListener)
       editorElement.addEventListener("dragover", (e) => e.preventDefault())
     }
-
     return () => {
       if (editorElement) {
         editorElement.removeEventListener("drop", handleDrop as EventListener)
@@ -255,10 +478,52 @@ export function EditorCanvas({
     }
   }, [handleImageUpload])
 
-  const insertBlock = useCallback((type: string) => {
+  // Close slash menu on outside click
+  useEffect(() => {
+    const handleClick = () => {
+      if (showSlashMenu) {
+        setShowSlashMenu(false)
+        slashStartPosRef.current = null
+        setSlashQuery("")
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [showSlashMenu])
+
+  // Close table picker on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (showTablePicker && tableBtnRef && !tableBtnRef.contains(e.target as Node)) {
+        const picker = document.getElementById("table-size-picker")
+        if (picker && !picker.contains(e.target as Node)) {
+          setShowTablePicker(false)
+        }
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [showTablePicker, tableBtnRef])
+
+  const insertBlock = useCallback((type: string, tableRows?: number, tableCols?: number) => {
     if (!editor) return
 
+    // Delete the slash + any query text before inserting
+    if (slashStartPosRef.current !== null) {
+      const currentPos = editor.state.selection.$from.pos
+      const deleteFrom = slashStartPosRef.current
+      const deleteTo = currentPos
+      if (deleteTo > deleteFrom) {
+        editor.chain().deleteRange({ from: deleteFrom, to: deleteTo }).run()
+      } else if (deleteTo === deleteFrom) {
+        // just delete the "/" char
+        editor.chain().deleteRange({ from: deleteFrom - 1, to: deleteFrom }).run()
+      }
+      slashStartPosRef.current = null
+    }
+
     setShowSlashMenu(false)
+    setSlashQuery("")
 
     switch (type) {
       case "heading1":
@@ -289,9 +554,13 @@ export function EditorCanvas({
         editor.chain().focus().setHorizontalRule().run()
         break
       case "table":
-        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+        editor
+          .chain()
+          .focus()
+          .insertTable({ rows: tableRows ?? 3, cols: tableCols ?? 3, withHeaderRow: true })
+          .run()
         break
-      case "image":
+      case "image": {
         const input = document.createElement("input")
         input.type = "file"
         input.accept = "image/*"
@@ -301,27 +570,16 @@ export function EditorCanvas({
         }
         input.click()
         break
+      }
     }
   }, [editor, handleImageUpload])
 
-  const blockTypes = [
-    { type: "heading1", label: "Heading 1", icon: Heading1, description: "Large section heading" },
-    { type: "heading2", label: "Heading 2", icon: Heading2, description: "Medium section heading" },
-    { type: "heading3", label: "Heading 3", icon: Heading3, description: "Small section heading" },
-    { type: "paragraph", label: "Paragraph", icon: Pilcrow, description: "Plain text block" },
-    { type: "bulletList", label: "Bullet List", icon: List, description: "Unordered list" },
-    { type: "orderedList", label: "Numbered List", icon: ListOrdered, description: "Ordered list" },
-    { type: "blockquote", label: "Quote", icon: Quote, description: "Quotation block" },
-    { type: "codeBlock", label: "Code", icon: Code, description: "Code snippet" },
-    { type: "image", label: "Image", icon: ImageIcon, description: "Upload or embed image" },
-    { type: "table", label: "Table", icon: TableIcon, description: "Insert table" },
-    { type: "horizontalRule", label: "Divider", icon: Minus, description: "Horizontal line" }
-  ]
+  const filteredBlocks = getFilteredBlocks(slashQuery)
 
   if (!editor) return null
 
   return (
-    <div className={cn("flex flex-col h-full", className)}>
+    <div className={cn("flex flex-col h-full", className)} ref={editorContainerRef}>
       {/* Top Toolbar - Sticky */}
       <div className="sticky top-0 z-40 bg-card border-b border-border px-2 py-1.5 flex items-center gap-1 flex-wrap shadow-sm">
         {/* History */}
@@ -331,7 +589,7 @@ export function EditorCanvas({
             onClick={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().undo()}
             className="p-1.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Undo"
+            title="Undo (Ctrl+Z)"
           >
             <Undo className="h-4 w-4" />
           </button>
@@ -340,7 +598,7 @@ export function EditorCanvas({
             onClick={() => editor.chain().focus().redo().run()}
             disabled={!editor.can().redo()}
             className="p-1.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Redo"
+            title="Redo (Ctrl+Shift+Z)"
           >
             <Redo className="h-4 w-4" />
           </button>
@@ -351,12 +609,11 @@ export function EditorCanvas({
           <select
             value={
               editor.isActive("heading", { level: 1 }) ? "h1" :
-                editor.isActive("heading", { level: 2 }) ? "h2" :
-                  editor.isActive("heading", { level: 3 }) ? "h3" :
-                    editor.isActive("heading", { level: 4 }) ? "h4" :
-                      editor.isActive("heading", { level: 5 }) ? "h5" :
-                        editor.isActive("heading", { level: 6 }) ? "h6" :
-                          "p"
+              editor.isActive("heading", { level: 2 }) ? "h2" :
+              editor.isActive("heading", { level: 3 }) ? "h3" :
+              editor.isActive("heading", { level: 4 }) ? "h4" :
+              editor.isActive("heading", { level: 5 }) ? "h5" :
+              editor.isActive("heading", { level: 6 }) ? "h6" : "p"
             }
             onChange={(e) => {
               const value = e.target.value
@@ -384,43 +641,31 @@ export function EditorCanvas({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBold().run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive("bold") && "bg-muted text-primary"
-            )}
-            title="Bold"
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("bold") && "bg-muted text-primary")}
+            title="Bold (Ctrl+B)"
           >
             <Bold className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive("italic") && "bg-muted text-primary"
-            )}
-            title="Italic"
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("italic") && "bg-muted text-primary")}
+            title="Italic (Ctrl+I)"
           >
             <Italic className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleUnderline().run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive("underline") && "bg-muted text-primary"
-            )}
-            title="Underline"
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("underline") && "bg-muted text-primary")}
+            title="Underline (Ctrl+U)"
           >
             <UnderlineIcon className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleStrike().run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive("strike") && "bg-muted text-primary"
-            )}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("strike") && "bg-muted text-primary")}
             title="Strikethrough"
           >
             <Strikethrough className="h-4 w-4" />
@@ -432,10 +677,7 @@ export function EditorCanvas({
           <button
             type="button"
             onClick={() => editor.chain().focus().setTextAlign("left").run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive({ textAlign: "left" }) && "bg-muted text-primary"
-            )}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive({ textAlign: "left" }) && "bg-muted text-primary")}
             title="Align Left"
           >
             <AlignLeft className="h-4 w-4" />
@@ -443,10 +685,7 @@ export function EditorCanvas({
           <button
             type="button"
             onClick={() => editor.chain().focus().setTextAlign("center").run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive({ textAlign: "center" }) && "bg-muted text-primary"
-            )}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive({ textAlign: "center" }) && "bg-muted text-primary")}
             title="Align Center"
           >
             <AlignCenter className="h-4 w-4" />
@@ -454,10 +693,7 @@ export function EditorCanvas({
           <button
             type="button"
             onClick={() => editor.chain().focus().setTextAlign("right").run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive({ textAlign: "right" }) && "bg-muted text-primary"
-            )}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive({ textAlign: "right" }) && "bg-muted text-primary")}
             title="Align Right"
           >
             <AlignRight className="h-4 w-4" />
@@ -465,10 +701,7 @@ export function EditorCanvas({
           <button
             type="button"
             onClick={() => editor.chain().focus().setTextAlign("justify").run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive({ textAlign: "justify" }) && "bg-muted text-primary"
-            )}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive({ textAlign: "justify" }) && "bg-muted text-primary")}
             title="Justify"
           >
             <AlignJustify className="h-4 w-4" />
@@ -480,32 +713,23 @@ export function EditorCanvas({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBulletList().run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive("bulletList") && "bg-muted text-primary"
-            )}
-            title="Bullet List"
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("bulletList") && "bg-muted text-primary")}
+            title="Bullet List (Ctrl+Alt+8)"
           >
             <List className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive("orderedList") && "bg-muted text-primary"
-            )}
-            title="Numbered List"
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("orderedList") && "bg-muted text-primary")}
+            title="Numbered List (Ctrl+Alt+7)"
           >
             <ListOrdered className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive("blockquote") && "bg-muted text-primary"
-            )}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("blockquote") && "bg-muted text-primary")}
             title="Quote"
           >
             <Quote className="h-4 w-4" />
@@ -513,10 +737,7 @@ export function EditorCanvas({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive("codeBlock") && "bg-muted text-primary"
-            )}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("codeBlock") && "bg-muted text-primary")}
             title="Code Block"
           >
             <Code className="h-4 w-4" />
@@ -524,20 +745,21 @@ export function EditorCanvas({
         </div>
 
         {/* Insert */}
-        <div className="flex items-center">
+        <div className="flex items-center gap-0.5">
           <button
             type="button"
             onClick={() => {
-              const url = window.prompt("Enter link URL:")
-              if (url) {
-                editor.chain().focus().setLink({ href: url }).run()
+              const previousUrl = editor.getAttributes("link").href
+              const url = window.prompt("Enter link URL:", previousUrl || "https://")
+              if (url === null) return
+              if (url === "") {
+                editor.chain().focus().extendMarkRange("link").unsetLink().run()
+                return
               }
+              editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run()
             }}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted",
-              editor.isActive("link") && "bg-muted text-primary"
-            )}
-            title="Insert Link"
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("link") && "bg-muted text-primary")}
+            title="Insert Link (Ctrl+K)"
           >
             <LinkIcon className="h-4 w-4" />
           </button>
@@ -549,14 +771,29 @@ export function EditorCanvas({
           >
             <ImageIcon className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            onClick={() => insertBlock("table")}
-            className="p-1.5 rounded hover:bg-muted"
-            title="Insert Table"
-          >
-            <TableIcon className="h-4 w-4" />
-          </button>
+          {/* Table button with size picker */}
+          <div className="relative">
+            <button
+              type="button"
+              ref={(el) => el && setTableBtnRef(el)}
+              onClick={() => setShowTablePicker((v) => !v)}
+              className={cn("p-1.5 rounded hover:bg-muted flex items-center gap-0.5", showTablePicker && "bg-muted text-primary")}
+              title="Insert Table"
+            >
+              <TableIcon className="h-4 w-4" />
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {showTablePicker && (
+              <div id="table-size-picker" className="absolute top-full left-0 mt-1 z-50">
+                <TableSizePicker
+                  onSelect={(rows, cols) => {
+                    editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run()
+                  }}
+                  onClose={() => setShowTablePicker(false)}
+                />
+              </div>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => editor.chain().focus().setHorizontalRule().run()}
@@ -571,22 +808,32 @@ export function EditorCanvas({
         <div className="flex items-center border-l border-border pl-2 ml-2">
           <button
             type="button"
+            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("heading", { level: 1 }) && "bg-muted text-primary")}
+            title="Heading 1 (Ctrl+Alt+1)"
+          >
+            <Heading1 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("heading", { level: 2 }) && "bg-muted text-primary")}
+            title="Heading 2 (Ctrl+Alt+2)"
+          >
+            <Heading2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
             onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted text-xs font-semibold",
-              editor.isActive("heading", { level: 3 }) && "bg-muted text-primary"
-            )}
-            title="Heading 3"
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("heading", { level: 3 }) && "bg-muted text-primary")}
+            title="Heading 3 (Ctrl+Alt+3)"
           >
             <Heading3 className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
-            className={cn(
-              "p-1.5 rounded hover:bg-muted text-xs font-semibold",
-              editor.isActive("heading", { level: 4 }) && "bg-muted text-primary"
-            )}
+            className={cn("p-1.5 rounded hover:bg-muted", editor.isActive("heading", { level: 4 }) && "bg-muted text-primary")}
             title="Heading 4"
           >
             <Heading4 className="h-4 w-4" />
@@ -595,30 +842,107 @@ export function EditorCanvas({
       </div>
 
       {/* Editor Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto relative">
         <div className="is-root-container is-desktop-preview is-layout-flow wp-block-post-content block-editor-block-list__layout max-w-4xl mx-auto py-8 px-6">
+
+          {/* Floating Toolbar - shown on selection */}
+          {showFloatingToolbar && activeBlock && (
+            <FloatingToolbar
+              editor={editor}
+              position={activeBlock.pos}
+              blockType={activeBlock.type}
+            />
+          )}
+
           <EditorContent editor={editor} />
 
           {/* Slash Menu */}
           {showSlashMenu && (
-            <div className="fixed z-50 bg-card border border-border rounded-lg shadow-xl p-2 w-72 max-h-80 overflow-y-auto">
-              <div className="text-xs text-muted-foreground px-2 py-1 mb-1">Insert block</div>
-              {blockTypes.map((block) => (
+            <div
+              className="absolute z-50 bg-card border border-border rounded-lg shadow-xl w-72 max-h-80 overflow-y-auto"
+              style={{ top: slashMenuPos.top, left: slashMenuPos.left }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="text-xs font-medium text-muted-foreground">Insert block</span>
+                {slashQuery && (
+                  <span className="text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded font-mono">
+                    /{slashQuery}
+                  </span>
+                )}
                 <button
-                  key={block.type}
                   type="button"
-                  onClick={() => insertBlock(block.type)}
-                  className="w-full flex items-center gap-3 px-2 py-2 rounded hover:bg-muted transition-colors text-left"
+                  onClick={() => { setShowSlashMenu(false); setSlashQuery("") }}
+                  className="text-muted-foreground hover:text-foreground ml-auto"
                 >
-                  <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
-                    <block.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-sm">{block.label}</div>
-                    <div className="text-xs text-muted-foreground">{block.description}</div>
-                  </div>
+                  <X className="h-3 w-3" />
                 </button>
-              ))}
+              </div>
+              <div className="p-1">
+                {filteredBlocks.length === 0 ? (
+                  <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                    No blocks found for &ldquo;{slashQuery}&rdquo;
+                  </div>
+                ) : (
+                  filteredBlocks.map((block, idx) => (
+                    block.type === "table" ? (
+                      // Table gets its own size picker inside slash menu
+                      <div key={block.type} className="relative group">
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-2 py-2 rounded transition-colors text-left",
+                            idx === slashMenuSelected ? "bg-muted" : "hover:bg-muted/60"
+                          )}
+                          onMouseEnter={() => setSlashMenuSelected(idx)}
+                        >
+                          <div className="w-9 h-9 rounded bg-muted flex items-center justify-center shrink-0">
+                            <block.icon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">{block.label}</div>
+                            <div className="text-xs text-muted-foreground">{block.description}</div>
+                          </div>
+                          <ChevronDown className="h-3 w-3 ml-auto text-muted-foreground rotate-[-90deg]" />
+                        </button>
+                        {/* Inline table size picker for slash menu */}
+                        {idx === slashMenuSelected && (
+                          <div className="mx-2 mb-1 p-2 bg-muted/40 rounded-md">
+                            <TableSizePicker
+                              onSelect={(rows, cols) => insertBlock("table", rows, cols)}
+                              onClose={() => { setShowSlashMenu(false); setSlashQuery("") }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        key={block.type}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          insertBlock(block.type)
+                        }}
+                        onMouseEnter={() => setSlashMenuSelected(idx)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-2 py-2 rounded transition-colors text-left",
+                          idx === slashMenuSelected ? "bg-muted" : "hover:bg-muted/60"
+                        )}
+                      >
+                        <div className="w-9 h-9 rounded bg-muted flex items-center justify-center shrink-0">
+                          <block.icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-sm">{block.label}</div>
+                          <div className="text-xs text-muted-foreground">{block.description}</div>
+                        </div>
+                      </button>
+                    )
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>
