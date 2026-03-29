@@ -830,7 +830,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
         {/* Editor Area */}
         <main className={cn(
           "flex-1 overflow-y-auto transition-all duration-300",
-          sidebarOpen ? "mr-0" : "mr-0"
+          sidebarOpen ? "mr-80" : "mr-0"
         )}>
           <div className="max-w-4xl mx-auto p-6 space-y-6">
             {/* Title Input */}
@@ -876,11 +876,11 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
           </div>
         </main>
 
-        {/* Right Sidebar - Sticky */}
-        <aside className={cn(
-          "w-80 border-l border-border bg-card transition-all duration-300 flex flex-col sticky top-0 h-screen overflow-hidden",
-          sidebarOpen ? "translate-x-0" : "translate-x-full hidden"
-        )}>
+{/* Right Sidebar - Fixed below header */}
+  <aside className={cn(
+  "w-80 border-l border-border bg-card transition-all duration-300 flex flex-col fixed top-14 right-0 bottom-0 z-40 overflow-hidden",
+  sidebarOpen ? "translate-x-0" : "translate-x-full hidden"
+  )}>
           {/* Sidebar Tabs */}
           <div className="flex border-b border-border">
             <button
