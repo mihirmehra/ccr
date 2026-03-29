@@ -393,7 +393,7 @@ export function EditorCanvas({
           const containerRect = editorContainerRef.current?.getBoundingClientRect()
           if (containerRect) {
             setSlashMenuPos({
-              top: coords.bottom - containerRect.top + 4,
+              top: coords.bottom - containerRect.top - 60 + 4,
               left: Math.max(0, coords.left - containerRect.left)
             })
           }
@@ -609,11 +609,11 @@ export function EditorCanvas({
           <select
             value={
               editor.isActive("heading", { level: 1 }) ? "h1" :
-              editor.isActive("heading", { level: 2 }) ? "h2" :
-              editor.isActive("heading", { level: 3 }) ? "h3" :
-              editor.isActive("heading", { level: 4 }) ? "h4" :
-              editor.isActive("heading", { level: 5 }) ? "h5" :
-              editor.isActive("heading", { level: 6 }) ? "h6" : "p"
+                editor.isActive("heading", { level: 2 }) ? "h2" :
+                  editor.isActive("heading", { level: 3 }) ? "h3" :
+                    editor.isActive("heading", { level: 4 }) ? "h4" :
+                      editor.isActive("heading", { level: 5 }) ? "h5" :
+                        editor.isActive("heading", { level: 6 }) ? "h6" : "p"
             }
             onChange={(e) => {
               const value = e.target.value
@@ -844,15 +844,6 @@ export function EditorCanvas({
       {/* Editor Content */}
       <div className="flex-1 overflow-y-auto relative">
         <div className="is-root-container is-desktop-preview is-layout-flow wp-block-post-content block-editor-block-list__layout max-w-4xl mx-auto py-8 px-6">
-
-          {/* Floating Toolbar - shown on selection */}
-          {showFloatingToolbar && activeBlock && (
-            <FloatingToolbar
-              editor={editor}
-              position={activeBlock.pos}
-              blockType={activeBlock.type}
-            />
-          )}
 
           <EditorContent editor={editor} />
 
