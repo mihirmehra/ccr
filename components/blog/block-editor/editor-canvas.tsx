@@ -52,6 +52,7 @@ interface EditorCanvasProps {
   placeholder?: string
   className?: string
   onBlockSelect?: (blockType: string | null) => void
+  onEditorReady?: (editor: ReturnType<typeof useEditor>) => void
 }
 
 // Table size picker component
@@ -123,7 +124,8 @@ export function EditorCanvas({
   onChange,
   placeholder = "Start writing or type '/' to insert a block...",
   className,
-  onBlockSelect
+  onBlockSelect,
+  onEditorReady
 }: EditorCanvasProps) {
   const [activeBlock, setActiveBlock] = useState<{
     type: string
@@ -251,11 +253,29 @@ export function EditorCanvas({
         }
       }
 
-      // Show floating toolbar when there's a selection OR cursor is in a block (for hover toolbar)
-      const { empty } = editor.state.selection
-      // Show toolbar if there's a selection, or if cursor is in a non-empty block
-      const hasContent = editor.state.doc.textBetween(0, editor.state.doc.content.size).length > 0
-      setShowFloatingToolbar(!empty || hasContent)
+      // Show floating toolbar when there's a text selection
+      const { empty, from } = editor.state.selection
+      
+      // Calculate toolbar position from selection
+      if (!empty) {
+        try {
+          const coords = editor.view.coordsAtPos(from)
+          const editorRect = editorContainerRef.current?.getBoundingClientRect()
+          if (editorRect) {
+            setActiveBlock(prev => ({
+              ...prev,
+              pos: {
+                top: coords.top - editorRect.top,
+                left: coords.left - editorRect.left
+              }
+            }))
+          }
+        } catch (e) {
+          // Ignore coord errors
+        }
+      }
+      
+      setShowFloatingToolbar(!empty)
     },
     editorProps: {
       attributes: {
@@ -477,6 +497,13 @@ export function EditorCanvas({
       }
     }
   }, [handleImageUpload])
+
+  // Notify parent when editor is ready
+  useEffect(() => {
+    if (editor && onEditorReady) {
+      onEditorReady(editor)
+    }
+  }, [editor, onEditorReady])
 
   // Close slash menu on outside click
   useEffect(() => {
@@ -846,6 +873,15 @@ export function EditorCanvas({
         <div className="is-root-container is-desktop-preview is-layout-flow wp-block-post-content block-editor-block-list__layout max-w-4xl mx-auto py-8 px-6">
 
           <EditorContent editor={editor} />
+
+          {/* Floating Toolbar */}
+          {showFloatingToolbar && activeBlock && (
+            <FloatingToolbar
+              editor={editor}
+              position={activeBlock.pos}
+              blockType={activeBlock.type}
+            />
+          )}
 
           {/* Slash Menu */}
           {showSlashMenu && (

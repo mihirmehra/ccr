@@ -179,11 +179,17 @@ function GooglePreview({
 // Block Settings Panel Component
 function BlockSettingsPanel({
   blockType,
-  onClose
+  onClose,
+  editor
 }: {
   blockType: string | null
   onClose: () => void
+  editor: ReturnType<typeof useEditor> | null
 }) {
+  const [imageWidth, setImageWidth] = useState("")
+  const [imageHeight, setImageHeight] = useState("")
+  const [altText, setAltText] = useState("")
+
   if (!blockType) return null
 
   const getBlockIcon = () => {
@@ -203,6 +209,41 @@ function BlockSettingsPanel({
   const BlockIcon = getBlockIcon()
   const blockLabel = blockType.charAt(0).toUpperCase() + blockType.slice(1).replace(/([A-Z])/g, " $1")
 
+  // Image size handlers
+  const handleImagePercentSize = (percent: string) => {
+    if (!editor) return
+    editor.chain().focus().updateAttributes("image", {
+      style: percent === "auto" ? "" : `width: ${percent}; max-width: 100%;`
+    }).run()
+  }
+
+  const handleImagePixelSize = (px: number) => {
+    if (!editor) return
+    editor.chain().focus().updateAttributes("image", {
+      style: `width: ${px}px; max-width: 100%;`
+    }).run()
+    setImageWidth(px.toString())
+  }
+
+  const handleCustomSize = () => {
+    if (!editor) return
+    const w = parseInt(imageWidth)
+    const h = parseInt(imageHeight)
+    if (w > 0) {
+      const style = h > 0
+        ? `width: ${w}px; height: ${h}px; max-width: 100%;`
+        : `width: ${w}px; max-width: 100%;`
+      editor.chain().focus().updateAttributes("image", { style }).run()
+    }
+  }
+
+  const handleAltTextChange = (value: string) => {
+    setAltText(value)
+    if (editor) {
+      editor.chain().focus().updateAttributes("image", { alt: value }).run()
+    }
+  }
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -219,34 +260,32 @@ function BlockSettingsPanel({
         </button>
       </div>
 
-      <div className="text-xs text-muted-foreground">
-        Select a block in the editor to see its settings here.
-      </div>
-
       {/* Typography Settings - for text blocks */}
       {["paragraph", "heading", "text"].includes(blockType) && (
         <CollapsiblePanel title="Typography" icon={Type} defaultOpen>
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-medium mb-1 block">Font Size</label>
-              <select className="w-full h-8 text-sm border border-border rounded px-2 bg-background">
-                <option value="small">Small</option>
-                <option value="normal">Normal</option>
-                <option value="medium">Medium</option>
-                <option value="large">Large</option>
-                <option value="xlarge">Extra Large</option>
-              </select>
-            </div>
-            <div>
               <label className="text-xs font-medium mb-1 block">Text Alignment</label>
               <div className="flex gap-1">
-                <button type="button" className="flex-1 p-2 border border-border rounded hover:bg-muted">
+                <button 
+                  type="button" 
+                  onClick={() => editor?.chain().focus().setTextAlign("left").run()}
+                  className={cn("flex-1 p-2 border border-border rounded hover:bg-muted", editor?.isActive({ textAlign: "left" }) && "bg-muted")}
+                >
                   <AlignLeft className="h-4 w-4 mx-auto" />
                 </button>
-                <button type="button" className="flex-1 p-2 border border-border rounded hover:bg-muted">
+                <button 
+                  type="button"
+                  onClick={() => editor?.chain().focus().setTextAlign("center").run()}
+                  className={cn("flex-1 p-2 border border-border rounded hover:bg-muted", editor?.isActive({ textAlign: "center" }) && "bg-muted")}
+                >
                   <AlignCenter className="h-4 w-4 mx-auto" />
                 </button>
-                <button type="button" className="flex-1 p-2 border border-border rounded hover:bg-muted">
+                <button 
+                  type="button"
+                  onClick={() => editor?.chain().focus().setTextAlign("right").run()}
+                  className={cn("flex-1 p-2 border border-border rounded hover:bg-muted", editor?.isActive({ textAlign: "right" }) && "bg-muted")}
+                >
                   <AlignRight className="h-4 w-4 mx-auto" />
                 </button>
               </div>
@@ -260,53 +299,80 @@ function BlockSettingsPanel({
         <>
           <CollapsiblePanel title="Image Size" icon={Maximize2} defaultOpen>
             <div className="space-y-3">
+              {/* Percentage presets */}
               <div>
-                <label className="text-xs font-medium mb-1 block">Width</label>
-                <select className="w-full h-8 text-sm border border-border rounded px-2 bg-background">
-                  <option value="25%">Small (25%)</option>
-                  <option value="50%">Medium (50%)</option>
-                  <option value="75%">Large (75%)</option>
-                  <option value="100%">Full Width (100%)</option>
-                  <option value="auto">Original Size</option>
-                </select>
+                <label className="text-xs font-medium mb-1 block">Width (%)</label>
+                <div className="flex flex-wrap gap-1">
+                  {["25%", "50%", "75%", "100%", "auto"].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => handleImagePercentSize(size)}
+                      className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded border border-border"
+                    >
+                      {size === "auto" ? "Auto" : size}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Pixel presets */}
               <div>
-                <label className="text-xs font-medium mb-1 block">Alignment</label>
-                <div className="flex gap-1">
-                  <button type="button" className="flex-1 p-2 border border-border rounded hover:bg-muted">
-                    <AlignLeft className="h-4 w-4 mx-auto" />
-                  </button>
-                  <button type="button" className="flex-1 p-2 border border-border rounded hover:bg-muted">
-                    <AlignCenter className="h-4 w-4 mx-auto" />
-                  </button>
-                  <button type="button" className="flex-1 p-2 border border-border rounded hover:bg-muted">
-                    <AlignRight className="h-4 w-4 mx-auto" />
+                <label className="text-xs font-medium mb-1 block">Width (px)</label>
+                <div className="flex flex-wrap gap-1">
+                  {[150, 300, 450, 600, 800, 1024].map((px) => (
+                    <button
+                      key={px}
+                      type="button"
+                      onClick={() => handleImagePixelSize(px)}
+                      className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded border border-border"
+                    >
+                      {px}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom size */}
+              <div>
+                <label className="text-xs font-medium mb-1 block">Custom (px)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Width"
+                    value={imageWidth}
+                    onChange={(e) => setImageWidth(e.target.value)}
+                    className="flex-1 h-8 text-sm border border-border rounded px-2 bg-background"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Height"
+                    value={imageHeight}
+                    onChange={(e) => setImageHeight(e.target.value)}
+                    className="flex-1 h-8 text-sm border border-border rounded px-2 bg-background"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCustomSize}
+                    disabled={!imageWidth}
+                    className="px-3 h-8 text-xs bg-primary text-primary-foreground rounded disabled:opacity-50"
+                  >
+                    Apply
                   </button>
                 </div>
               </div>
             </div>
           </CollapsiblePanel>
 
-          <CollapsiblePanel title="Alt Text & Caption" icon={FileText} defaultOpen>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium mb-1 block">Alt Text</label>
-                <Input placeholder="Describe the image..." className="h-8 text-sm" />
-              </div>
-              <div>
-                <label className="text-xs font-medium mb-1 block">Caption</label>
-                <Input placeholder="Image caption..." className="h-8 text-sm" />
-              </div>
-            </div>
-          </CollapsiblePanel>
-
-          <CollapsiblePanel title="Link" icon={Globe}>
+          <CollapsiblePanel title="Alt Text" icon={FileText} defaultOpen>
             <div className="space-y-2">
-              <Input placeholder="https://..." className="h-8 text-sm" />
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="rounded" />
-                Open in new tab
-              </label>
+              <Input 
+                placeholder="Describe the image..." 
+                className="h-8 text-sm"
+                value={altText}
+                onChange={(e) => handleAltTextChange(e.target.value)}
+              />
+              <p className="text-[10px] text-muted-foreground">Important for accessibility and SEO</p>
             </div>
           </CollapsiblePanel>
         </>
@@ -369,6 +435,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activePanel, setActivePanel] = useState<"post" | "seo" | "block" | "toc">("post")
   const [selectedBlockType, setSelectedBlockType] = useState<string | null>(null)
+  const [editorInstance, setEditorInstance] = useState<any>(null)
   const autoSaveRef = useRef<NodeJS.Timeout | null>(null)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [autoSaving, setAutoSaving] = useState(false)
@@ -875,6 +942,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
                     setActivePanel("block")
                   }
                 }}
+                onEditorReady={(editor) => setEditorInstance(editor)}
               />
             </div>
           </div>
@@ -1266,6 +1334,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
                     setSelectedBlockType(null)
                     setActivePanel("post")
                   }}
+                  editor={editorInstance}
                 />
               ) : (
                 <div className="p-4 text-center text-muted-foreground">
