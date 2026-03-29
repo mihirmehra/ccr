@@ -2,6 +2,7 @@
 
 // WordPress-style Block Editor Canvas Component
 import { useEditor, EditorContent } from "@tiptap/react"
+import { NodeSelection } from "@tiptap/pm/state"
 import { StarterKit } from "@tiptap/starter-kit"
 import { Placeholder } from "@tiptap/extension-placeholder"
 import { Image } from "@tiptap/extension-image"
@@ -253,12 +254,14 @@ export function EditorCanvas({
         }
       }
 
-      // Show floating toolbar when there's a text selection
+      // Show floating toolbar when there's a text selection OR when an image/block is selected
       const { empty } = editor.state.selection
       const selectionFrom = editor.state.selection.from
+      const isNodeSelection = editor.state.selection.constructor.name === "NodeSelection"
+      const isImageSelected = editor.isActive("image")
       
       // Calculate toolbar position from selection
-      if (!empty) {
+      if (!empty || isNodeSelection || isImageSelected) {
         try {
           const coords = editor.view.coordsAtPos(selectionFrom)
           const editorRect = editorContainerRef.current?.getBoundingClientRect()
@@ -276,7 +279,8 @@ export function EditorCanvas({
         }
       }
       
-      setShowFloatingToolbar(!empty)
+      // Show toolbar for text selections OR image/node selections
+      setShowFloatingToolbar(!empty || isNodeSelection || isImageSelected)
     },
     editorProps: {
       attributes: {
@@ -285,6 +289,36 @@ export function EditorCanvas({
           "focus:outline-none min-h-[400px] p-4"
         ),
         "data-is-drop-zone": "true"
+      },
+      handleClick: (view, pos, event) => {
+        // Check if clicking on an image
+        const node = view.state.doc.nodeAt(pos)
+        if (node?.type.name === "image") {
+          // Select the image node using NodeSelection
+          const tr = view.state.tr.setSelection(
+            NodeSelection.create(view.state.doc, pos)
+          )
+          view.dispatch(tr)
+          
+          // Update active block and show toolbar
+          const domNode = view.nodeDOM(pos) as HTMLElement
+          if (domNode) {
+            const rect = domNode.getBoundingClientRect()
+            const containerRect = editorContainerRef.current?.getBoundingClientRect()
+            setActiveBlock({
+              type: "image",
+              attrs: node.attrs,
+              pos: {
+                top: rect.top - (containerRect?.top ?? 0),
+                left: rect.left - (containerRect?.left ?? 0)
+              }
+            })
+            setShowFloatingToolbar(true)
+            onBlockSelect?.("image")
+          }
+          return true
+        }
+        return false
       },
       handleKeyDown: (view, event) => {
         const { state } = view

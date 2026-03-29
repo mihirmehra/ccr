@@ -211,17 +211,57 @@ function BlockSettingsPanel({
 
   // Image size handlers
   const handleImagePercentSize = (percent: string) => {
-    if (!editor) return
-    editor.chain().focus().updateAttributes("image", {
-      style: percent === "auto" ? "" : `width: ${percent}; max-width: 100%;`
-    }).run()
+    if (!editor) {
+      console.log("[v0] handleImagePercentSize: no editor")
+      return
+    }
+    console.log("[v0] handleImagePercentSize:", percent, "isActive image:", editor.isActive("image"))
+    
+    // Find and select the image node first
+    const { state } = editor
+    let imagePos: number | null = null
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === "image" && imagePos === null) {
+        imagePos = pos
+      }
+    })
+    
+    if (imagePos !== null) {
+      editor.chain()
+        .setNodeSelection(imagePos)
+        .updateAttributes("image", {
+          style: percent === "auto" ? "" : `width: ${percent}; max-width: 100%;`
+        })
+        .run()
+    } else {
+      console.log("[v0] No image found in document")
+    }
   }
 
   const handleImagePixelSize = (px: number) => {
-    if (!editor) return
-    editor.chain().focus().updateAttributes("image", {
-      style: `width: ${px}px; max-width: 100%;`
-    }).run()
+    if (!editor) {
+      console.log("[v0] handleImagePixelSize: no editor")
+      return
+    }
+    console.log("[v0] handleImagePixelSize:", px)
+    
+    // Find and select the image node first
+    const { state } = editor
+    let imagePos: number | null = null
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === "image" && imagePos === null) {
+        imagePos = pos
+      }
+    })
+    
+    if (imagePos !== null) {
+      editor.chain()
+        .setNodeSelection(imagePos)
+        .updateAttributes("image", {
+          style: `width: ${px}px; max-width: 100%;`
+        })
+        .run()
+    }
     setImageWidth(px.toString())
   }
 
@@ -233,7 +273,22 @@ function BlockSettingsPanel({
       const style = h > 0
         ? `width: ${w}px; height: ${h}px; max-width: 100%;`
         : `width: ${w}px; max-width: 100%;`
-      editor.chain().focus().updateAttributes("image", { style }).run()
+      
+      // Find and select the image node first
+      const { state } = editor
+      let imagePos: number | null = null
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === "image" && imagePos === null) {
+          imagePos = pos
+        }
+      })
+      
+      if (imagePos !== null) {
+        editor.chain()
+          .setNodeSelection(imagePos)
+          .updateAttributes("image", { style })
+          .run()
+      }
     }
   }
 
