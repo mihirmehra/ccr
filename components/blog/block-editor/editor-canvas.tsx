@@ -254,12 +254,13 @@ export function EditorCanvas({
       }
 
       // Show floating toolbar when there's a text selection
-      const { empty, from } = editor.state.selection
+      const { empty } = editor.state.selection
+      const selectionFrom = editor.state.selection.from
       
       // Calculate toolbar position from selection
       if (!empty) {
         try {
-          const coords = editor.view.coordsAtPos(from)
+          const coords = editor.view.coordsAtPos(selectionFrom)
           const editorRect = editorContainerRef.current?.getBoundingClientRect()
           if (editorRect) {
             setActiveBlock(prev => ({
