@@ -725,8 +725,11 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Top Toolbar - WordPress Style */}
-      <header className="sticky top-0 z-50 h-14 bg-card border-b border-border flex items-center justify-between px-4 shadow-sm">
+      {/* Top Toolbar - WordPress Style - Fixed */}
+      <header className={cn(
+        "fixed top-0 left-0 z-50 h-14 bg-card border-b border-border flex items-center justify-between px-4 shadow-sm transition-all duration-300",
+        sidebarOpen ? "right-80" : "right-0"
+      )}>
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -825,8 +828,8 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main Content Area - with top padding for fixed header */}
+      <div className="flex-1 flex overflow-hidden pt-14">
         {/* Editor Area */}
         <main className={cn(
           "flex-1 overflow-y-auto transition-all duration-300",
