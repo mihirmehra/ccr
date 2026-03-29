@@ -1139,6 +1139,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
 
               {/* Featured Image */}
               <CollapsiblePanel title="Featured Image" icon={ImageIcon} defaultOpen>
+                <p className="text-[10px] text-muted-foreground mb-2">Recommended: 800 x 450px (16:9)</p>
                 <div className="space-y-3">
                   {formData.cover_image ? (
                     <div className="relative">
@@ -1181,6 +1182,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
 
               {/* Banner Image */}
               <CollapsiblePanel title="Banner Image" icon={ImageIcon}>
+                <p className="text-[10px] text-muted-foreground mb-2">Recommended: 1200 x 525px (16:7) - Hero display</p>
                 <div className="space-y-3">
                   {formData.banner_image ? (
                     <div className="relative">
