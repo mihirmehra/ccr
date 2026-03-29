@@ -8,12 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { EditorCanvas } from "@/components/blog/block-editor"
-import { 
-  Save, 
-  Eye, 
-  Send, 
-  Settings2, 
-  Search, 
+import {
+  Save,
+  Eye,
+  Send,
+  Settings2,
+  Search,
   ChevronRight,
   ChevronDown,
   Calendar,
@@ -85,19 +85,19 @@ interface WordPressBlogEditorProps {
 }
 
 // Collapsible Panel Component
-function CollapsiblePanel({ 
-  title, 
-  icon: Icon, 
-  children, 
-  defaultOpen = false 
-}: { 
+function CollapsiblePanel({
+  title,
+  icon: Icon,
+  children,
+  defaultOpen = false
+}: {
   title: string
   icon: React.ElementType
   children: React.ReactNode
   defaultOpen?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
-  
+
   return (
     <div className="border-b border-border last:border-b-0">
       <button
@@ -131,11 +131,11 @@ function SEOScore({ score, label }: { score: number; label: string }) {
     if (s >= 50) return "bg-yellow-500"
     return "bg-red-500"
   }
-  
+
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-        <div 
+        <div
           className={cn("h-full rounded-full transition-all duration-500", getScoreColor(score))}
           style={{ width: `${score}%` }}
         />
@@ -146,12 +146,12 @@ function SEOScore({ score, label }: { score: number; label: string }) {
 }
 
 // Google Preview Component
-function GooglePreview({ 
-  title, 
-  slug, 
+function GooglePreview({
+  title,
+  slug,
   description,
   siteUrl = "countryroof.com"
-}: { 
+}: {
   title: string
   slug: string
   description: string
@@ -160,7 +160,7 @@ function GooglePreview({
   const displayUrl = `${siteUrl}/blog/${slug || "post-url"}`
   const displayTitle = title || "Post title"
   const displayDesc = description || "Add a meta description to see how this post will appear in search results..."
-  
+
   return (
     <div className="p-3 bg-background rounded-lg border border-border">
       <p className="text-xs text-muted-foreground mb-1">Google Preview</p>
@@ -176,15 +176,15 @@ function GooglePreview({
 }
 
 // Block Settings Panel Component
-function BlockSettingsPanel({ 
-  blockType, 
-  onClose 
-}: { 
+function BlockSettingsPanel({
+  blockType,
+  onClose
+}: {
   blockType: string | null
-  onClose: () => void 
+  onClose: () => void
 }) {
   if (!blockType) return null
-  
+
   const getBlockIcon = () => {
     switch (blockType) {
       case "heading": return Heading1
@@ -198,10 +198,10 @@ function BlockSettingsPanel({
       default: return Layers
     }
   }
-  
+
   const BlockIcon = getBlockIcon()
   const blockLabel = blockType.charAt(0).toUpperCase() + blockType.slice(1).replace(/([A-Z])/g, " $1")
-  
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -217,11 +217,11 @@ function BlockSettingsPanel({
           <X className="h-4 w-4" />
         </button>
       </div>
-      
+
       <div className="text-xs text-muted-foreground">
         Select a block in the editor to see its settings here.
       </div>
-      
+
       {/* Typography Settings - for text blocks */}
       {["paragraph", "heading", "text"].includes(blockType) && (
         <CollapsiblePanel title="Typography" icon={Type} defaultOpen>
@@ -253,7 +253,7 @@ function BlockSettingsPanel({
           </div>
         </CollapsiblePanel>
       )}
-      
+
       {/* Image Settings */}
       {blockType === "image" && (
         <>
@@ -285,7 +285,7 @@ function BlockSettingsPanel({
               </div>
             </div>
           </CollapsiblePanel>
-          
+
           <CollapsiblePanel title="Alt Text & Caption" icon={FileText} defaultOpen>
             <div className="space-y-3">
               <div>
@@ -298,7 +298,7 @@ function BlockSettingsPanel({
               </div>
             </div>
           </CollapsiblePanel>
-          
+
           <CollapsiblePanel title="Link" icon={Globe}>
             <div className="space-y-2">
               <Input placeholder="https://..." className="h-8 text-sm" />
@@ -310,7 +310,7 @@ function BlockSettingsPanel({
           </CollapsiblePanel>
         </>
       )}
-      
+
       {/* Color Settings - for applicable blocks */}
       {["paragraph", "heading", "blockquote"].includes(blockType) && (
         <CollapsiblePanel title="Color" icon={Palette}>
@@ -344,7 +344,7 @@ function BlockSettingsPanel({
           </div>
         </CollapsiblePanel>
       )}
-      
+
       {/* Spacing Settings */}
       <CollapsiblePanel title="Spacing" icon={RectangleHorizontal}>
         <div className="space-y-3">
@@ -371,14 +371,14 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
   const autoSaveRef = useRef<NodeJS.Timeout | null>(null)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [autoSaving, setAutoSaving] = useState(false)
-  
+
   // Parse initial categories
   const getInitialCategories = () => {
     if (!initialData?.category) return []
     if (Array.isArray(initialData.category)) return initialData.category
     return [initialData.category]
   }
-  
+
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     excerpt: initialData?.excerpt || "",
@@ -399,7 +399,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
     is_published: initialData?.is_published || false,
     slug: initialData?.slug || "",
   })
-  
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
@@ -409,11 +409,11 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
   const [addingCategory, setAddingCategory] = useState(false)
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
-  
+
   // Tags state
   const [newTagName, setNewTagName] = useState("")
   const [availableTags, setAvailableTags] = useState<string[]>([])
-  
+
   // Keywords state  
   const [newKeywordName, setNewKeywordName] = useState("")
   const [availableKeywords, setAvailableKeywords] = useState<string[]>([])
@@ -439,7 +439,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
       hasExcerpt: formData.excerpt.length > 0,
       hasFeaturedImage: !!formData.cover_image || !!formData.banner_image,
     }
-    
+
     if (checks.hasTitle) score += 15
     if (checks.titleLength) score += 10
     if (checks.hasDescription) score += 15
@@ -448,7 +448,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
     if (checks.hasContent) score += 20
     if (checks.hasExcerpt) score += 10
     if (checks.hasFeaturedImage) score += 10
-    
+
     return { score, checks }
   }, [formData])
 
@@ -457,16 +457,16 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
   // Initialize available tags and keywords from initial data
   useEffect(() => {
     if (initialData?.tags) {
-      const initialTags = Array.isArray(initialData.tags) 
-        ? initialData.tags 
-        : typeof initialData.tags === 'string' 
-          ? initialData.tags.split(',').map(t => t.trim()).filter(Boolean) 
+      const initialTags = Array.isArray(initialData.tags)
+        ? initialData.tags
+        : typeof initialData.tags === 'string'
+          ? initialData.tags.split(',').map(t => t.trim()).filter(Boolean)
           : []
       setAvailableTags(initialTags)
     }
     if (initialData?.meta_keywords) {
-      const initialKeywords = typeof initialData.meta_keywords === 'string' 
-        ? initialData.meta_keywords.split(',').map(k => k.trim()).filter(Boolean) 
+      const initialKeywords = typeof initialData.meta_keywords === 'string'
+        ? initialData.meta_keywords.split(',').map(k => k.trim()).filter(Boolean)
         : []
       setAvailableKeywords(initialKeywords)
     }
@@ -493,15 +493,15 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
   // Auto-save draft (every 60 seconds when content changes)
   useEffect(() => {
     if (!formData.title || formData.is_published) return
-    
+
     if (autoSaveRef.current) clearTimeout(autoSaveRef.current)
-    
+
     autoSaveRef.current = setTimeout(async () => {
       setAutoSaving(true)
       try {
         const url = isEditing ? `/api/admin/blog/posts/${initialData?._id}` : "/api/admin/blog/posts"
         const method = isEditing ? "PUT" : "POST"
-        
+
         const payload = {
           ...formData,
           category: formData.categories,
@@ -509,13 +509,13 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
           meta_keywords: (formData.keywords as string[]).join(", "),
           is_published: false,
         }
-        
-        const response = await fetch(url, { 
-          method, 
+
+        const response = await fetch(url, {
+          method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         })
-        
+
         if (response.ok) {
           setLastSaved(new Date())
         }
@@ -525,7 +525,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
         setAutoSaving(false)
       }
     }, 60000)
-    
+
     return () => {
       if (autoSaveRef.current) clearTimeout(autoSaveRef.current)
     }
@@ -675,7 +675,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
       setError("Please enter a title for your post")
       return
     }
-    
+
     setLoading(true)
     setError("")
     setSuccess(false)
@@ -705,7 +705,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
 
       setSuccess(true)
       setFormData((prev) => ({ ...prev, is_published: publishStatus }))
-      
+
       setTimeout(() => {
         router.refresh()
         router.push("/admin/blog")
@@ -740,9 +740,9 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">All Posts</span>
           </Button>
-          
+
           <div className="h-6 w-px bg-border hidden sm:block" />
-          
+
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {autoSaving && (
               <span className="flex items-center gap-1.5">
@@ -829,7 +829,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
       )}
 
       {/* Main Content Area - with top padding for fixed header */}
-      <div className="flex-1 flex overflow-hidden pt-14">
+      <div className="flex-1 flex overflow-hidden">
         {/* Editor Area */}
         <main className={cn(
           "flex-1 overflow-y-auto transition-all duration-300",
@@ -879,11 +879,11 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
           </div>
         </main>
 
-{/* Right Sidebar - Fixed below header */}
-  <aside className={cn(
-  "w-80 border-l border-border bg-card transition-all duration-300 flex flex-col fixed top-14 right-0 bottom-0 z-40 overflow-hidden",
-  sidebarOpen ? "translate-x-0" : "translate-x-full hidden"
-  )}>
+        {/* Right Sidebar - Fixed below header */}
+        <aside className={cn(
+          "w-80 border-l border-border bg-card transition-all duration-300 flex flex-col fixed top-14 right-0 bottom-0 z-40 overflow-hidden",
+          sidebarOpen ? "translate-x-0" : "translate-x-full hidden"
+        )}>
           {/* Sidebar Tabs */}
           <div className="flex border-b border-border">
             <button
@@ -891,8 +891,8 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
               onClick={() => setActivePanel("post")}
               className={cn(
                 "flex-1 px-3 py-3 text-sm font-medium transition-colors",
-                activePanel === "post" 
-                  ? "border-b-2 border-primary text-primary" 
+                activePanel === "post"
+                  ? "border-b-2 border-primary text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -906,8 +906,8 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
               onClick={() => setActivePanel("block")}
               className={cn(
                 "flex-1 px-3 py-3 text-sm font-medium transition-colors relative",
-                activePanel === "block" 
-                  ? "border-b-2 border-primary text-primary" 
+                activePanel === "block"
+                  ? "border-b-2 border-primary text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -924,8 +924,8 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
               onClick={() => setActivePanel("seo")}
               className={cn(
                 "flex-1 px-3 py-3 text-sm font-medium transition-colors relative",
-                activePanel === "seo" 
-                  ? "border-b-2 border-primary text-primary" 
+                activePanel === "seo"
+                  ? "border-b-2 border-primary text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -935,8 +935,8 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
                 <span className={cn(
                   "text-xs px-1.5 py-0.5 rounded-full font-medium",
                   seoData.score >= 80 ? "bg-green-500/20 text-green-600" :
-                  seoData.score >= 50 ? "bg-yellow-500/20 text-yellow-600" :
-                  "bg-red-500/20 text-red-600"
+                    seoData.score >= 50 ? "bg-yellow-500/20 text-yellow-600" :
+                      "bg-red-500/20 text-red-600"
                 )}>
                   {seoData.score}
                 </span>
@@ -1242,12 +1242,12 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
           {activePanel === "block" && (
             <div className="flex-1 overflow-y-auto pb-20">
               {selectedBlockType ? (
-                <BlockSettingsPanel 
-                  blockType={selectedBlockType} 
+                <BlockSettingsPanel
+                  blockType={selectedBlockType}
                   onClose={() => {
                     setSelectedBlockType(null)
                     setActivePanel("post")
-                  }} 
+                  }}
                 />
               ) : (
                 <div className="p-4 text-center text-muted-foreground">
@@ -1269,15 +1269,15 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
                   <span className={cn(
                     "text-lg font-bold",
                     seoData.score >= 80 ? "text-green-600" :
-                    seoData.score >= 50 ? "text-yellow-600" :
-                    "text-red-600"
+                      seoData.score >= 50 ? "text-yellow-600" :
+                        "text-red-600"
                   )}>
                     {seoData.score}/100
                   </span>
                 </div>
                 <SEOScore score={seoData.score} label={
                   seoData.score >= 80 ? "Good" :
-                  seoData.score >= 50 ? "OK" : "Needs Work"
+                    seoData.score >= 50 ? "OK" : "Needs Work"
                 } />
               </div>
 
