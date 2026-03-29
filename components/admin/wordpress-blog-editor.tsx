@@ -34,6 +34,7 @@ import {
   CheckCircle2,
   Sparkles,
   Layers,
+  ListTree,
   Type,
   AlignLeft,
   AlignCenter,
@@ -366,7 +367,7 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
   const router = useRouter()
   const isEditing = !!initialData?._id
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [activePanel, setActivePanel] = useState<"post" | "seo" | "block">("post")
+  const [activePanel, setActivePanel] = useState<"post" | "seo" | "block" | "toc">("post")
   const [selectedBlockType, setSelectedBlockType] = useState<string | null>(null)
   const autoSaveRef = useRef<NodeJS.Timeout | null>(null)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -942,6 +943,21 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
                 </span>
               </span>
             </button>
+            <button
+              type="button"
+              onClick={() => setActivePanel("toc")}
+              className={cn(
+                "flex-1 px-3 py-3 text-sm font-medium transition-colors relative",
+                activePanel === "toc"
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span className="flex items-center justify-center gap-1.5">
+                <ListTree className="h-4 w-4" />
+                <span className="hidden lg:inline">TOC</span>
+              </span>
+            </button>
           </div>
 
           {/* Post Settings Panel */}
@@ -1467,6 +1483,223 @@ export default function WordPressBlogEditor({ initialData }: WordPressBlogEditor
                   ))}
                 </div>
               </CollapsiblePanel>
+            </div>
+          )}
+
+          {/* TOC Panel */}
+          {activePanel === "toc" && (
+            <div className="flex-1 overflow-y-auto pb-20">
+              {/* Table of Contents */}
+              <div className="p-4 border-b border-border">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <ListTree className="h-4 w-4" />
+                  Table of Contents
+                </h3>
+                {(() => {
+                  // Parse headings from content
+                  const headingRegex = /<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi
+                  const headings: { level: number; text: string }[] = []
+                  let match
+                  const tempDiv = typeof document !== 'undefined' ? document.createElement('div') : null
+                  
+                  while ((match = headingRegex.exec(formData.content)) !== null) {
+                    // Strip HTML tags from heading text
+                    let text = match[2]
+                    if (tempDiv) {
+                      tempDiv.innerHTML = text
+                      text = tempDiv.textContent || tempDiv.innerText || ''
+                    } else {
+                      text = text.replace(/<[^>]*>/g, '')
+                    }
+                    headings.push({ level: parseInt(match[1]), text: text.trim() })
+                  }
+
+                  const h1Count = headings.filter(h => h.level === 1).length
+                  const h2Count = headings.filter(h => h.level === 2).length
+                  const h3Count = headings.filter(h => h.level === 3).length
+
+                  return (
+                    <div className="space-y-3">
+                      {headings.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No headings found in content</p>
+                      ) : (
+                        <>
+                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                            {headings.map((heading, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-start gap-2 text-sm"
+                                style={{ paddingLeft: `${(heading.level - 1) * 12}px` }}
+                              >
+                                <span className="text-muted-foreground text-xs mt-0.5">
+                                  {heading.level === 1 ? '●' : heading.level === 2 ? '○' : '◦'}
+                                </span>
+                                <span className="text-foreground truncate">{heading.text || '(empty)'}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="pt-3 border-t border-border space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground">Content Structure:</p>
+                            <div className="grid grid-cols-2 gap-1 text-xs">
+                              <span className="text-muted-foreground">H1: {h1Count} sections</span>
+                              <span className="text-muted-foreground">H2: {h2Count} subsections</span>
+                              <span className="text-muted-foreground">H3: {h3Count} details</span>
+                              <span className="font-medium">Total: {headings.length}</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* Images in Content */}
+              <div className="p-4 border-b border-border">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Content Images
+                </h3>
+                {(() => {
+                  // Parse images from content
+                  const imgRegex = /<img[^>]+src="([^"]+)"[^>]*(?:width="(\d+)")?[^>]*(?:height="(\d+)")?[^>]*>/gi
+                  const images: { src: string; width?: string; height?: string; alt?: string }[] = []
+                  let match
+                  
+                  // Reset regex lastIndex
+                  imgRegex.lastIndex = 0
+                  
+                  const content = formData.content
+                  while ((match = imgRegex.exec(content)) !== null) {
+                    const fullTag = match[0]
+                    const src = match[1]
+                    
+                    // Extract width, height, and alt from the full tag
+                    const widthMatch = fullTag.match(/width="(\d+)"/)
+                    const heightMatch = fullTag.match(/height="(\d+)"/)
+                    const altMatch = fullTag.match(/alt="([^"]*)"/)
+                    
+                    images.push({
+                      src,
+                      width: widthMatch?.[1],
+                      height: heightMatch?.[1],
+                      alt: altMatch?.[1]
+                    })
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      {images.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No images found in content</p>
+                      ) : (
+                        <>
+                          <p className="text-xs text-muted-foreground">{images.length} image(s) in content</p>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {images.map((img, idx) => (
+                              <div key={idx} className="flex gap-2 p-2 bg-muted/50 rounded-md">
+                                <div className="w-12 h-12 rounded overflow-hidden bg-muted flex-shrink-0">
+                                  <img
+                                    src={img.src}
+                                    alt={img.alt || `Image ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium truncate" title={img.alt || img.src}>
+                                    {img.alt || `Image ${idx + 1}`}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {img.width && img.height
+                                      ? `${img.width} x ${img.height}px`
+                                      : img.width
+                                        ? `Width: ${img.width}px`
+                                        : img.height
+                                          ? `Height: ${img.height}px`
+                                          : 'Size: Auto'}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate" title={img.src}>
+                                    {img.src.length > 30 ? '...' + img.src.slice(-27) : img.src}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* Content Stats */}
+              <div className="p-4">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Content Statistics
+                </h3>
+                {(() => {
+                  // Calculate content stats
+                  const tempDiv = typeof document !== 'undefined' ? document.createElement('div') : null
+                  let plainText = formData.content
+                  if (tempDiv) {
+                    tempDiv.innerHTML = formData.content
+                    plainText = tempDiv.textContent || tempDiv.innerText || ''
+                  } else {
+                    plainText = formData.content.replace(/<[^>]*>/g, ' ')
+                  }
+                  
+                  const wordCount = plainText.trim().split(/\s+/).filter(w => w.length > 0).length
+                  const charCount = plainText.length
+                  const paragraphCount = (formData.content.match(/<p[^>]*>/gi) || []).length
+                  const linkCount = (formData.content.match(/<a[^>]*>/gi) || []).length
+                  const listCount = (formData.content.match(/<[uo]l[^>]*>/gi) || []).length
+                  const codeBlockCount = (formData.content.match(/<pre[^>]*>/gi) || []).length
+                  const tableCount = (formData.content.match(/<table[^>]*>/gi) || []).length
+                  const blockquoteCount = (formData.content.match(/<blockquote[^>]*>/gi) || []).length
+                  const readTime = Math.max(1, Math.ceil(wordCount / 200))
+
+                  return (
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Words:</span>
+                        <span className="font-medium">{wordCount.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Characters:</span>
+                        <span className="font-medium">{charCount.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Paragraphs:</span>
+                        <span className="font-medium">{paragraphCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Links:</span>
+                        <span className="font-medium">{linkCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Lists:</span>
+                        <span className="font-medium">{listCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Code blocks:</span>
+                        <span className="font-medium">{codeBlockCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Tables:</span>
+                        <span className="font-medium">{tableCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Quotes:</span>
+                        <span className="font-medium">{blockquoteCount}</span>
+                      </div>
+                      <div className="col-span-2 pt-2 mt-2 border-t border-border flex justify-between">
+                        <span className="text-muted-foreground">Est. read time:</span>
+                        <span className="font-medium">{readTime} min</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
             </div>
           )}
         </aside>
