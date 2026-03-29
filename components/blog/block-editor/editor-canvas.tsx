@@ -252,7 +252,7 @@ export function EditorCanvas({
       }
 
       // Show floating toolbar when there's a selection OR cursor is in a block (for hover toolbar)
-      const { empty, from } = editor.state.selection
+      const { empty } = editor.state.selection
       // Show toolbar if there's a selection, or if cursor is in a non-empty block
       const hasContent = editor.state.doc.textBetween(0, editor.state.doc.content.size).length > 0
       setShowFloatingToolbar(!empty || hasContent)
