@@ -54,6 +54,10 @@ export function FloatingToolbar({ editor, position, blockType }: FloatingToolbar
   const [showTransformMenu, setShowTransformMenu] = useState(false)
   const [showSizeMenu, setShowSizeMenu] = useState(false)
   const [showTableMenu, setShowTableMenu] = useState(false)
+  const [customWidth, setCustomWidth] = useState("")
+  const [customHeight, setCustomHeight] = useState("")
+  const [lockAspectRatio, setLockAspectRatio] = useState(true)
+  const [originalAspectRatio, setOriginalAspectRatio] = useState<number | null>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
 
   // Close menus when clicking outside
@@ -93,6 +97,16 @@ export function FloatingToolbar({ editor, position, blockType }: FloatingToolbar
     { size: "original", label: "Original Size", width: "auto" }
   ]
 
+  const pixelSizePresets = [
+    { label: "150px", width: 150 },
+    { label: "300px", width: 300 },
+    { label: "450px", width: 450 },
+    { label: "600px", width: 600 },
+    { label: "800px", width: 800 },
+    { label: "1024px", width: 1024 },
+    { label: "1200px", width: 1200 }
+  ]
+
   const handleTransform = (type: string) => {
     switch (type) {
       case "paragraph": editor.chain().focus().setParagraph().run(); break
@@ -116,6 +130,47 @@ export function FloatingToolbar({ editor, position, blockType }: FloatingToolbar
       style: width === "auto" ? "" : `width: ${width}; max-width: 100%;`
     }).run()
     setShowSizeMenu(false)
+  }
+
+  const handleImagePixelSize = (widthPx: number, heightPx?: number) => {
+    const style = heightPx 
+      ? `width: ${widthPx}px; height: ${heightPx}px; max-width: 100%;`
+      : `width: ${widthPx}px; max-width: 100%;`
+    editor.chain().focus().updateAttributes("image", { style }).run()
+    setCustomWidth(widthPx.toString())
+    if (heightPx) setCustomHeight(heightPx.toString())
+  }
+
+  const handleCustomSizeApply = () => {
+    const w = parseInt(customWidth)
+    const h = parseInt(customHeight)
+    if (w > 0) {
+      const style = h > 0
+        ? `width: ${w}px; height: ${h}px; max-width: 100%;`
+        : `width: ${w}px; max-width: 100%;`
+      editor.chain().focus().updateAttributes("image", { style }).run()
+      setShowSizeMenu(false)
+    }
+  }
+
+  const handleWidthChange = (value: string) => {
+    setCustomWidth(value)
+    if (lockAspectRatio && originalAspectRatio && value) {
+      const w = parseInt(value)
+      if (w > 0) {
+        setCustomHeight(Math.round(w / originalAspectRatio).toString())
+      }
+    }
+  }
+
+  const handleHeightChange = (value: string) => {
+    setCustomHeight(value)
+    if (lockAspectRatio && originalAspectRatio && value) {
+      const h = parseInt(value)
+      if (h > 0) {
+        setCustomWidth(Math.round(h * originalAspectRatio).toString())
+      }
+    }
   }
 
   const getCurrentBlockLabel = () => {
@@ -275,8 +330,9 @@ export function FloatingToolbar({ editor, position, blockType }: FloatingToolbar
             <ChevronDown className="h-3 w-3" />
           </button>
           {showSizeMenu && (
-            <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-lg shadow-xl py-1 w-48 z-50">
-              <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium">Image Size</div>
+            <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-lg shadow-xl py-1 w-64 z-50 max-h-80 overflow-y-auto">
+              {/* Percentage sizes */}
+              <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium">Percentage Width</div>
               {imageSizeOptions.map((option) => (
                 <button
                   key={option.size}
@@ -291,6 +347,73 @@ export function FloatingToolbar({ editor, position, blockType }: FloatingToolbar
                   {option.label}
                 </button>
               ))}
+
+              <div className="border-t border-border my-1" />
+
+              {/* Pixel size presets */}
+              <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium">Pixel Width</div>
+              <div className="px-2 pb-1 flex flex-wrap gap-1">
+                {pixelSizePresets.map((preset) => (
+                  <button
+                    key={preset.width}
+                    type="button"
+                    onClick={() => handleImagePixelSize(preset.width)}
+                    className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded border border-border"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="border-t border-border my-1" />
+
+              {/* Custom size input */}
+              <div className="px-3 py-2 space-y-2">
+                <div className="text-xs text-muted-foreground font-medium">Custom Size (px)</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-muted-foreground">Width</label>
+                    <input
+                      type="number"
+                      value={customWidth}
+                      onChange={(e) => handleWidthChange(e.target.value)}
+                      placeholder="Auto"
+                      min="1"
+                      className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLockAspectRatio(!lockAspectRatio)}
+                    className={cn(
+                      "p-1.5 mt-3 rounded border",
+                      lockAspectRatio ? "bg-primary/10 border-primary text-primary" : "border-border text-muted-foreground"
+                    )}
+                    title={lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"}
+                  >
+                    <Link className="h-3 w-3" />
+                  </button>
+                  <div className="flex-1">
+                    <label className="text-[10px] text-muted-foreground">Height</label>
+                    <input
+                      type="number"
+                      value={customHeight}
+                      onChange={(e) => handleHeightChange(e.target.value)}
+                      placeholder="Auto"
+                      min="1"
+                      className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCustomSizeApply}
+                  disabled={!customWidth || parseInt(customWidth) <= 0}
+                  className="w-full px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Apply Size
+                </button>
+              </div>
             </div>
           )}
         </div>

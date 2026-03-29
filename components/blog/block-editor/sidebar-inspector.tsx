@@ -291,6 +291,38 @@ export function SidebarInspector({ editor, activeBlock, onClose }: SidebarInspec
 
     // Image settings
     if (activeBlock.type === "image") {
+      const currentStyle = activeBlock.attrs?.style || ""
+      const widthMatch = currentStyle.match(/width:\s*(\d+)px/)
+      const heightMatch = currentStyle.match(/height:\s*(\d+)px/)
+      const currentWidth = widthMatch ? widthMatch[1] : ""
+      const currentHeight = heightMatch ? heightMatch[1] : ""
+      
+      const handleImageSizeChange = (width: string, height: string) => {
+        const w = parseInt(width)
+        const h = parseInt(height)
+        let style = ""
+        if (w > 0 && h > 0) {
+          style = `width: ${w}px; height: ${h}px; max-width: 100%;`
+        } else if (w > 0) {
+          style = `width: ${w}px; max-width: 100%;`
+        } else if (h > 0) {
+          style = `height: ${h}px;`
+        }
+        editor.chain().focus().updateAttributes("image", { style }).run()
+      }
+
+      const handlePresetSize = (width: number) => {
+        editor.chain().focus().updateAttributes("image", {
+          style: `width: ${width}px; max-width: 100%;`
+        }).run()
+      }
+
+      const handlePercentSize = (percent: string) => {
+        editor.chain().focus().updateAttributes("image", {
+          style: percent === "auto" ? "" : `width: ${percent}; max-width: 100%;`
+        }).run()
+      }
+
       return (
         <>
           <CollapsibleSection title="Image Settings" icon={Image} defaultOpen>
@@ -299,6 +331,8 @@ export function SidebarInspector({ editor, activeBlock, onClose }: SidebarInspec
               <input
                 type="text"
                 placeholder="Describe the image"
+                defaultValue={activeBlock.attrs?.alt || ""}
+                onChange={(e) => editor.chain().focus().updateAttributes("image", { alt: e.target.value }).run()}
                 className="w-full px-3 py-2 text-sm border border-border rounded bg-background"
               />
               <p className="text-xs text-muted-foreground">
@@ -306,28 +340,78 @@ export function SidebarInspector({ editor, activeBlock, onClose }: SidebarInspec
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Width</label>
-                <input
-                  type="text"
-                  placeholder="Auto"
-                  className="w-full px-3 py-2 text-sm border border-border rounded bg-background"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Height</label>
-                <input
-                  type="text"
-                  placeholder="Auto"
-                  className="w-full px-3 py-2 text-sm border border-border rounded bg-background"
-                />
+            {/* Percentage Width Presets */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Width (%)</label>
+              <div className="flex flex-wrap gap-1">
+                {["25%", "50%", "75%", "100%", "auto"].map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => handlePercentSize(size)}
+                    className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded border border-border"
+                  >
+                    {size === "auto" ? "Auto" : size}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="lock-ratio" defaultChecked />
-              <label htmlFor="lock-ratio" className="text-sm">Lock aspect ratio</label>
+            {/* Pixel Width Presets */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Width (px)</label>
+              <div className="flex flex-wrap gap-1">
+                {[150, 300, 450, 600, 800, 1024].map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => handlePresetSize(size)}
+                    className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded border border-border"
+                  >
+                    {size}px
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Size Inputs */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Custom Size (px)</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Width</label>
+                  <input
+                    type="number"
+                    placeholder="Auto"
+                    defaultValue={currentWidth}
+                    min="1"
+                    onBlur={(e) => handleImageSizeChange(e.target.value, currentHeight)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleImageSizeChange((e.target as HTMLInputElement).value, currentHeight)
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-border rounded bg-background"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Height</label>
+                  <input
+                    type="number"
+                    placeholder="Auto"
+                    defaultValue={currentHeight}
+                    min="1"
+                    onBlur={(e) => handleImageSizeChange(currentWidth, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleImageSizeChange(currentWidth, (e.target as HTMLInputElement).value)
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-border rounded bg-background"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Press Enter or click outside to apply</p>
             </div>
           </CollapsibleSection>
 
